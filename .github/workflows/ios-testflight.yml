@@ -61,6 +61,7 @@ jobs:
       - name: Verify files
         run: |
           echo "===== FILE CHECK ====="
+
           ls -lah
 
           file app.ipa || true
@@ -85,7 +86,7 @@ jobs:
 
           ls -lah signed.ipa
 
-      # Create API key json
+      # Create API Key JSON
       - name: Create API Key JSON
         env:
           ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
@@ -100,7 +101,13 @@ jobs:
           }
           EOF
 
+          echo "===== API KEY JSON ====="
           cat api_key.json
+
+      # Install latest fastlane
+      - name: Install latest fastlane
+        run: |
+          gem install fastlane
 
       # Upload to TestFlight
       - name: Upload to TestFlight
