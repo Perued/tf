@@ -1,17 +1,13 @@
 name: Auto Sign And Upload TestFlight
-
 on:
   workflow_dispatch:
   push:
     branches:
       - main
-
 jobs:
   upload-ipa:
     runs-on: macos-latest
-
     steps:
-
       # Checkout repository with Git LFS
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -40,31 +36,31 @@ jobs:
         run: |
           echo "${{ secrets.APP_STORE_CONNECT_API_KEY }}" | base64 --decode > AuthKey.p8
 
-           # Install zsign
+      # Install zsign
       - name: Install zsign
         run: |
-          brew install openssl
+          brew install openssl@3
           brew install libplist
           brew install minizip
           brew install ldid
-
           git clone https://github.com/zhlynn/zsign.git
           cd zsign
-
           g++ -std=c++17 \
-            *.cpp common/*.cpp \
+            $(find . -maxdepth 2 -name "*.cpp") \
             -I/opt/homebrew/include \
+            -I/opt/homebrew/opt/openssl@3/include \
             -L/opt/homebrew/lib \
+            -L/opt/homebrew/opt/openssl@3/lib \
             -lssl \
             -lcrypto \
             -lplist-2.0 \
+            -lminizip \
             -lz \
             -o zsign
-
           sudo mv zsign /usr/local/bin/
           sudo chmod +x /usr/local/bin/zsign
-
           zsign -v
+
       # Verify files
       - name: Verify files
         run: |
@@ -98,7 +94,8 @@ jobs:
             -m upload \
             -assetFile signed.ipa \
             -apiKey "${{ secrets.ASC_KEY_ID }}" \
-            -apiIssuer "${{ secrets.ASC_ISSUER_ID }}"
+            -apiIssuer "${{ secrets.ASC_ISSUER_ID }}" \
+            -apiPrivateKey @file:AuthKey.p8
 
       # Upload artifact
       - name: Upload signed IPA artifact
