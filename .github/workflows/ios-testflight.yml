@@ -1,13 +1,17 @@
 name: Auto Sign And Upload TestFlight
+
 on:
   workflow_dispatch:
   push:
     branches:
       - main
+
 jobs:
   upload-ipa:
     runs-on: macos-latest
+
     steps:
+
       # Checkout repository with Git LFS
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -40,11 +44,17 @@ jobs:
       - name: Install zsign
         run: |
           brew install openssl@3 pkg-config
+
           git clone https://github.com/zhlynn/zsign.git
+
           cd zsign/build/macos
+
           make
+
           sudo cp ../../bin/zsign /usr/local/bin/
+
           sudo chmod +x /usr/local/bin/zsign
+
           zsign -v
 
       # Verify files
@@ -52,6 +62,7 @@ jobs:
         run: |
           echo "===== FILE CHECK ====="
           ls -lah
+
           file app.ipa || true
           file cert.p12 || true
           file profile.mobileprovision || true
@@ -71,24 +82,29 @@ jobs:
       - name: Verify signed IPA
         run: |
           echo "===== SIGNED IPA ====="
+
           ls -lah signed.ipa
 
-      # Upload to TestFlight
-      - name: Upload to TestFlight
+      # Create API key json
+      - name: Create API Key JSON
         env:
           ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
           ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
         run: |
-          # 生成 fastlane 需要的 API Key JSON 文件
-          cat > api_key.json << EOF
+          cat > api_key.json <<EOF
           {
             "key_id": "${ASC_KEY_ID}",
             "issuer_id": "${ASC_ISSUER_ID}",
-            "key": "$(cat AuthKey.p8)",
+            "key_filepath": "$(pwd)/AuthKey.p8",
             "in_house": false
           }
           EOF
 
+          cat api_key.json
+
+      # Upload to TestFlight
+      - name: Upload to TestFlight
+        run: |
           fastlane pilot upload \
             --ipa signed.ipa \
             --api_key_path api_key.json \
