@@ -10,7 +10,7 @@ platform :ios do
 
     UI.message("Assuming signing certificate and provisioning profile are already installed on the runner")
 
-    app_identifier = ENV.fetch("APP_IDENTIFIER", "com.example.app")
+    app_identifier = ENV.fetch("APP_IDENTIFIER", "com.qixin.iphonexx")
     scheme = ENV.fetch("SCHEME", "App")
     workspace = ENV["WORKSPACE"]
     profile_name = ENV.fetch("PROVISIONING_PROFILE_NAME", "")
