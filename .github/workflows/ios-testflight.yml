@@ -44,9 +44,10 @@ jobs:
       - name: Install zsign
         run: |
           git clone https://github.com/zhlynn/zsign.git
-          cd zsign
-          xcodebuild
-          sudo cp build/Release/zsign /usr/local/bin/
+          cd zsign/build
+          chmod +x build.sh
+          ./build.sh
+          sudo cp zsign /usr/local/bin/
 
       # Verify files
       - name: Verify files
