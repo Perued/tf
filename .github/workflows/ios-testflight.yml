@@ -79,17 +79,19 @@ jobs:
           ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
           ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
         run: |
-          gem install fastlane --no-document
+          # 生成 fastlane 需要的 API Key JSON 文件
+          cat > api_key.json << EOF
+          {
+            "key_id": "${ASC_KEY_ID}",
+            "issuer_id": "${ASC_ISSUER_ID}",
+            "key": "$(cat AuthKey.p8)",
+            "in_house": false
+          }
+          EOF
 
-          # 把 API Key 放到 fastlane 约定的目录
-          mkdir -p ~/.appstoreconnect/private_keys
-          cp AuthKey.p8 ~/.appstoreconnect/private_keys/AuthKey_${ASC_KEY_ID}.p8
-
-          # 上传到 TestFlight
           fastlane pilot upload \
             --ipa signed.ipa \
-            --api_key_id "${ASC_KEY_ID}" \
-            --api_key_issuer_id "${ASC_ISSUER_ID}" \
+            --api_key_path api_key.json \
             --skip_waiting_for_build_processing true
 
       # Upload artifact
