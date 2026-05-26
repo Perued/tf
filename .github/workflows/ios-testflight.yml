@@ -88,21 +88,23 @@ jobs:
 
       # Create API Key JSON
       - name: Create API Key JSON
-        env:
-          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
-          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
-        run: |
-          cat > api_key.json <<EOF
-          {
-            "key_id": "${ASC_KEY_ID}",
-            "issuer_id": "${ASC_ISSUER_ID}",
-            "key_filepath": "$(pwd)/AuthKey.p8",
-            "in_house": false
-          }
-          EOF
+       env:
+         ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+         ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+       run: |
+         PRIVATE_KEY=$(awk '{printf "%s\\n", $0}' AuthKey.p8)
 
-          echo "===== API KEY JSON ====="
-          cat api_key.json
+         cat > api_key.json <<EOF
+         {
+           "key_id": "${ASC_KEY_ID}",
+           "issuer_id": "${ASC_ISSUER_ID}",
+           "key": "${PRIVATE_KEY}",
+           "in_house": false
+         }
+         EOF
+
+         echo "===== API KEY JSON ====="
+         cat api_key.json
 
       # Install latest fastlane
       - name: Install latest fastlane
