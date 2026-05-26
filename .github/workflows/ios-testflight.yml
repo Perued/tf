@@ -75,13 +75,22 @@ jobs:
 
       # Upload to TestFlight
       - name: Upload to TestFlight
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
         run: |
-          xcrun iTMSTransporter \
-            -m upload \
-            -assetFile signed.ipa \
-            -apiKey "${{ secrets.ASC_KEY_ID }}" \
-            -apiIssuer "${{ secrets.ASC_ISSUER_ID }}" \
-            -apiPrivateKey @file:AuthKey.p8
+          gem install fastlane --no-document
+
+          # 把 API Key 放到 fastlane 约定的目录
+          mkdir -p ~/.appstoreconnect/private_keys
+          cp AuthKey.p8 ~/.appstoreconnect/private_keys/AuthKey_${ASC_KEY_ID}.p8
+
+          # 上传到 TestFlight
+          fastlane pilot upload \
+            --ipa signed.ipa \
+            --api_key_id "${ASC_KEY_ID}" \
+            --api_key_issuer_id "${ASC_ISSUER_ID}" \
+            --skip_waiting_for_build_processing true
 
       # Upload artifact
       - name: Upload signed IPA artifact
