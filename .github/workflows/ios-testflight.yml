@@ -46,7 +46,10 @@ jobs:
           git clone https://github.com/zhlynn/zsign.git
           cd zsign
           g++ -std=c++17 \
-            $(find . -maxdepth 2 -name "*.cpp") \
+            $(find . -maxdepth 3 -name "*.cpp") \
+            -I. \
+            -Isrc \
+            -Icommon \
             -I/opt/homebrew/include \
             -I/opt/homebrew/opt/openssl@3/include \
             -L/opt/homebrew/lib \
@@ -60,7 +63,6 @@ jobs:
           sudo mv zsign /usr/local/bin/
           sudo chmod +x /usr/local/bin/zsign
           zsign -v
-
       # Verify files
       - name: Verify files
         run: |
