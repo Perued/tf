@@ -18,8 +18,10 @@ jobs:
         with:
           ruby-version: 3.1
 
-      - name: Install Fastlane
-        run: gem install fastlane
+      - name: Install Bundler and gems
+        run: |
+          gem install bundler
+          bundle install --jobs 4 --retry 3
 
       - name: Write App Store Connect API key
         env:
@@ -41,5 +43,5 @@ jobs:
 
       - name: Upload IPA to TestFlight
         env:
-          IPA_PATH: ${{ secrets.IPA_PATH }}
-        run: fastlane upload_ipa
+          IPA_PATH: app.ipa
+        run: bundle exec fastlane upload_ipa
