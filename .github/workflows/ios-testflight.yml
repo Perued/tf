@@ -44,4 +44,20 @@ jobs:
       - name: Upload IPA to TestFlight
         env:
           IPA_PATH: app.ipa
-        run: bundle exec fastlane upload_ipa
+        run: |
+          export FASTLANE_SKIP_UPDATE_CHECK=1
+          export FASTLANE_VERBOSE=1
+          export FASTLANE_DEBUG=1
+          bundle exec fastlane upload_ipa 2>&1 | tee fastlane.log
+
+      - name: Upload fastlane logs as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: fastlane-logs
+          path: fastlane.log
+
+      - name: Debug: show tail of fastlane.log
+        if: always()
+        run: |
+          echo '--- fastlane.log (last 200 lines) ---'
+          tail -n 200 fastlane.log || true
