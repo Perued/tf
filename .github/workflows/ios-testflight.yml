@@ -1,6 +1,7 @@
-name: iOS TestFlight Upload
+name: Auto Sign And Upload TestFlight
 
 on:
+  workflow_dispatch:
   push:
     branches:
       - main
@@ -10,54 +11,81 @@ jobs:
     runs-on: macos-latest
 
     steps:
+
+      # Checkout repository with Git LFS
       - name: Checkout repository
         uses: actions/checkout@v4
-
-      - name: Set up Ruby
-        uses: ruby/setup-ruby@v1
         with:
-          ruby-version: 3.1
+          lfs: true
 
-      - name: Install Bundler and gems
-        run: |
-          gem install bundler
-          bundle install --jobs 4 --retry 3
-
-      - name: Write App Store Connect API key
-        env:
-          APP_STORE_CONNECT_API_KEY: ${{ secrets.APP_STORE_CONNECT_API_KEY }}
-        run: |
-          echo "$APP_STORE_CONNECT_API_KEY" > AuthKey.json
-
-      - name: Debug: list repo and fastlane
+      # Debug files
+      - name: Debug repository files
         run: |
           pwd
-          echo '--- root files ---'
-          ls -la
-          echo '--- fastlane dir ---'
-          ls -la fastlane || true
-          echo '--- Fastfile preview ---'
-          sed -n '1,120p' fastlane/Fastfile || true
-          echo '--- ipa files ---'
-          ls -la *.ipa || ls -la ipa || true
+          echo "===== ROOT FILES ====="
+          ls -lah
 
-      - name: Upload IPA to TestFlight
-        env:
-          IPA_PATH: app.ipa
+      # Restore signing certificate
+      - name: Restore signing certificate
         run: |
-          export FASTLANE_SKIP_UPDATE_CHECK=1
-          export FASTLANE_VERBOSE=1
-          export FASTLANE_DEBUG=1
-          bundle exec fastlane upload_ipa 2>&1 | tee fastlane.log
+          echo "${{ secrets.SIGNING_CERT_P12 }}" | base64 --decode > cert.p12
 
-      - name: Upload fastlane logs as artifact
+      # Restore provisioning profile
+      - name: Restore provisioning profile
+        run: |
+          echo "${{ secrets.SIGNING_PROFILE }}" | base64 --decode > profile.mobileprovision
+
+      # Restore App Store Connect API key
+      - name: Restore App Store Connect API key
+        run: |
+          echo "${{ secrets.APP_STORE_CONNECT_API_KEY }}" | base64 --decode > AuthKey.p8
+
+      # Install zsign
+      - name: Install zsign
+        run: |
+          git clone https://github.com/zhlynn/zsign.git
+          cd zsign
+          xcodebuild
+          sudo cp build/Release/zsign /usr/local/bin/
+
+      # Verify files
+      - name: Verify files
+        run: |
+          echo "===== FILE CHECK ====="
+          ls -lah
+          file app.ipa || true
+          file cert.p12 || true
+          file profile.mobileprovision || true
+          file AuthKey.p8 || true
+
+      # Re-sign IPA
+      - name: Sign IPA
+        run: |
+          zsign \
+            -k cert.p12 \
+            -p "${{ secrets.SIGNING_CERT_P12_PASSWORD }}" \
+            -m profile.mobileprovision \
+            -o signed.ipa \
+            app.ipa
+
+      # Verify signed IPA
+      - name: Verify signed IPA
+        run: |
+          ls -lah signed.ipa
+
+      # Upload to TestFlight
+      - name: Upload to TestFlight
+        run: |
+          xcrun altool \
+            --upload-app \
+            -f signed.ipa \
+            -t ios \
+            --apiKey "${{ secrets.ASC_KEY_ID }}" \
+            --apiIssuer "${{ secrets.ASC_ISSUER_ID }}"
+
+      # Upload logs/artifact
+      - name: Upload signed IPA artifact
         uses: actions/upload-artifact@v4
         with:
-          name: fastlane-logs
-          path: fastlane.log
-
-      - name: Debug: show tail of fastlane.log
-        if: always()
-        run: |
-          echo '--- fastlane.log (last 200 lines) ---'
-          tail -n 200 fastlane.log || true
+          name: signed-ipa
+          path: signed.ipa
