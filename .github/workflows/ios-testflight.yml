@@ -11,36 +11,29 @@ jobs:
     runs-on: macos-latest
 
     steps:
-
-      # Checkout repository with Git LFS
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
           lfs: true
 
-      # Debug repository files
       - name: Debug repository files
         run: |
           pwd
           echo "===== ROOT FILES ====="
           ls -lah
 
-      # Restore signing certificate
       - name: Restore signing certificate
         run: |
           echo "${{ secrets.SIGNING_CERT_P12 }}" | base64 --decode > cert.p12
 
-      # Restore provisioning profile
       - name: Restore provisioning profile
         run: |
           echo "${{ secrets.SIGNING_PROFILE }}" | base64 --decode > profile.mobileprovision
 
-      # Restore App Store Connect API key
       - name: Restore App Store Connect API key
         run: |
           echo "${{ secrets.APP_STORE_CONNECT_API_KEY }}" | base64 --decode > AuthKey.p8
 
-      # Install zsign
       - name: Install zsign
         run: |
           brew install openssl@3 pkg-config
@@ -57,7 +50,6 @@ jobs:
 
           zsign -v
 
-      # Verify files
       - name: Verify files
         run: |
           echo "===== FILE CHECK ====="
@@ -69,7 +61,6 @@ jobs:
           file profile.mobileprovision || true
           file AuthKey.p8 || true
 
-      # Re-sign IPA
       - name: Sign IPA
         run: |
           zsign \
@@ -79,39 +70,36 @@ jobs:
             -o signed.ipa \
             app.ipa
 
-      # Verify signed IPA
       - name: Verify signed IPA
         run: |
           echo "===== SIGNED IPA ====="
 
           ls -lah signed.ipa
 
-      # Create API Key JSON
       - name: Create API Key JSON
-       env:
-         ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
-         ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
-       run: |
-         PRIVATE_KEY=$(awk '{printf "%s\\n", $0}' AuthKey.p8)
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+        run: |
+          PRIVATE_KEY=$(awk '{printf "%s\\n", $0}' AuthKey.p8)
 
-         cat > api_key.json <<EOF
-         {
-           "key_id": "${ASC_KEY_ID}",
-           "issuer_id": "${ASC_ISSUER_ID}",
-           "key": "${PRIVATE_KEY}",
-           "in_house": false
-         }
-         EOF
+          cat > api_key.json <<EOF
+          {
+            "key_id": "${ASC_KEY_ID}",
+            "issuer_id": "${ASC_ISSUER_ID}",
+            "key": "${PRIVATE_KEY}",
+            "in_house": false
+          }
+          EOF
 
-         echo "===== API KEY JSON ====="
-         cat api_key.json
+          echo "===== API KEY JSON ====="
 
-      # Install latest fastlane
+          cat api_key.json
+
       - name: Install latest fastlane
         run: |
           gem install fastlane
 
-      # Upload to TestFlight
       - name: Upload to TestFlight
         run: |
           fastlane pilot upload \
@@ -119,7 +107,6 @@ jobs:
             --api_key_path api_key.json \
             --skip_waiting_for_build_processing true
 
-      # Upload artifact
       - name: Upload signed IPA artifact
         uses: actions/upload-artifact@v4
         with:
