@@ -39,30 +39,14 @@ jobs:
       # Install zsign
       - name: Install zsign
         run: |
-          brew install openssl@3
-          brew install libplist
-          brew install minizip
-          brew install ldid
+          brew install openssl@3 pkg-config
           git clone https://github.com/zhlynn/zsign.git
-          cd zsign
-          g++ -std=c++17 \
-            $(find . -maxdepth 3 -name "*.cpp") \
-            -I. \
-            -Isrc \
-            -Icommon \
-            -I/opt/homebrew/include \
-            -I/opt/homebrew/opt/openssl@3/include \
-            -L/opt/homebrew/lib \
-            -L/opt/homebrew/opt/openssl@3/lib \
-            -lssl \
-            -lcrypto \
-            -lplist-2.0 \
-            -lminizip \
-            -lz \
-            -o zsign
-          sudo mv zsign /usr/local/bin/
+          cd zsign/build/macos
+          make
+          sudo cp ../../bin/zsign /usr/local/bin/
           sudo chmod +x /usr/local/bin/zsign
           zsign -v
+
       # Verify files
       - name: Verify files
         run: |
