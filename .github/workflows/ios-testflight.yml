@@ -1,0 +1,33 @@
+name: iOS TestFlight Upload
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  upload-ipa:
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: 3.1
+
+      - name: Install Fastlane
+        run: gem install fastlane
+
+      - name: Write App Store Connect API key
+        env:
+          APP_STORE_CONNECT_API_KEY: ${{ secrets.APP_STORE_CONNECT_API_KEY }}
+        run: |
+          echo "$APP_STORE_CONNECT_API_KEY" > AuthKey.json
+
+      - name: Upload IPA to TestFlight
+        env:
+          IPA_PATH: ${{ secrets.IPA_PATH }}
+        run: fastlane upload_ipa
