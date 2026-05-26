@@ -27,6 +27,18 @@ jobs:
         run: |
           echo "$APP_STORE_CONNECT_API_KEY" > AuthKey.json
 
+      - name: Debug: list repo and fastlane
+        run: |
+          pwd
+          echo '--- root files ---'
+          ls -la
+          echo '--- fastlane dir ---'
+          ls -la fastlane || true
+          echo '--- Fastfile preview ---'
+          sed -n '1,120p' fastlane/Fastfile || true
+          echo '--- ipa files ---'
+          ls -la *.ipa || ls -la ipa || true
+
       - name: Upload IPA to TestFlight
         env:
           IPA_PATH: ${{ secrets.IPA_PATH }}
