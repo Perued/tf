@@ -1,4 +1,4 @@
-name: Auto Sign And Upload TestFlight
+name: Upload Signed IPA To TestFlight
 
 on:
   workflow_dispatch:
@@ -11,104 +11,46 @@ jobs:
     runs-on: macos-latest
 
     steps:
+      # 拉取仓库
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
           lfs: true
 
-      - name: Debug repository files
+      # 查看文件
+      - name: Debug files
         run: |
           pwd
-          echo "===== ROOT FILES ====="
           ls -lah
+          file app.ipa
 
-      - name: Restore signing certificate
+      # 安装 fastlane
+      - name: Install fastlane
         run: |
-          echo "${{ secrets.SIGNING_CERT_P12 }}" | base64 --decode > cert.p12
+          brew install fastlane
 
-      - name: Restore provisioning profile
+      # 恢复 App Store Connect API Key
+      - name: Restore API Key
         run: |
-          echo "${{ secrets.SIGNING_PROFILE }}" | base64 --decode > profile.mobileprovision
-
-      - name: Restore App Store Connect API key
-        run: |
-          echo "${{ secrets.APP_STORE_CONNECT_API_KEY }}" | base64 --decode > AuthKey.p8
-
-      - name: Install zsign
-        run: |
-          brew install openssl@3 pkg-config
-
-          git clone https://github.com/zhlynn/zsign.git
-
-          cd zsign/build/macos
-
-          make
-
-          sudo cp ../../bin/zsign /usr/local/bin/
-
-          sudo chmod +x /usr/local/bin/zsign
-
-          zsign -v
-
-      - name: Verify files
-        run: |
-          echo "===== FILE CHECK ====="
-
-          ls -lah
-
-          file app.ipa || true
-          file cert.p12 || true
-          file profile.mobileprovision || true
-          file AuthKey.p8 || true
-
-      - name: Sign IPA
-        run: |
-          zsign \
-            -k cert.p12 \
-            -p "${{ secrets.SIGNING_CERT_P12_PASSWORD }}" \
-            -m profile.mobileprovision \
-            -o signed.ipa \
-            app.ipa
-
-      - name: Verify signed IPA
-        run: |
-          echo "===== SIGNED IPA ====="
-
-          ls -lah signed.ipa
-
-      - name: Create API Key JSON
-        env:
-          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
-          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
-        run: |
-          PRIVATE_KEY=$(awk '{printf "%s\\n", $0}' AuthKey.p8)
-
           cat > api_key.json <<EOF
           {
-            "key_id": "${ASC_KEY_ID}",
-            "issuer_id": "${ASC_ISSUER_ID}",
-            "key": "${PRIVATE_KEY}",
-            "in_house": false
+            "key_id": "${{ secrets.ASC_KEY_ID }}",
+            "issuer_id": "${{ secrets.ASC_ISSUER_ID }}",
+            "key": "${{ secrets.APP_STORE_CONNECT_API_KEY }}"
           }
           EOF
 
-          echo "===== API KEY JSON ====="
-
-          cat api_key.json
-
-      - name: Install latest fastlane
-        run: |
-          gem install fastlane
-
-      - name: Upload to TestFlight
+      # 上传 TestFlight
+      - name: Upload IPA
         run: |
           fastlane pilot upload \
-            --ipa signed.ipa \
+            --ipa app.ipa \
             --api_key_path api_key.json \
             --skip_waiting_for_build_processing true
 
-      - name: Upload signed IPA artifact
+      # 上传日志
+      - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: signed-ipa
-          path: signed.ipa
+          name: uploaded-ipa
+          path: app.ipa
