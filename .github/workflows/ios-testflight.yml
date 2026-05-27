@@ -56,8 +56,8 @@ jobs:
           APP_PATH=$(find ipa_work/Payload -name "*.app" -maxdepth 1 -type d)
           echo "App path: $APP_PATH"
 
-          # 修复 MinimumOSVersion
-          /usr/libexec/PlistBuddy -c "Set :MinimumOSVersion 9.0" "$APP_PATH/Info.plist" || \
+          # 修复 MinimumOSVersion（先删再加，避免空字符串问题）
+          /usr/libexec/PlistBuddy -c "Delete :MinimumOSVersion" "$APP_PATH/Info.plist" 2>/dev/null || true
           /usr/libexec/PlistBuddy -c "Add :MinimumOSVersion string 9.0" "$APP_PATH/Info.plist"
           echo "MinimumOSVersion: $(/usr/libexec/PlistBuddy -c 'Print :MinimumOSVersion' "$APP_PATH/Info.plist")"
 
@@ -72,6 +72,10 @@ jobs:
           /usr/libexec/PlistBuddy -c "Delete :UIBackgroundModes" "$APP_PATH/Info.plist" 2>/dev/null \
             && echo "已删除 UIBackgroundModes" \
             || echo "UIBackgroundModes 不存在，跳过"
+
+          # 删除 SC_Info（DRM 残留目录）
+          echo "===== 删除 SC_Info ====="
+          rm -rf "$APP_PATH/SC_Info" && echo "已删除 SC_Info/" || echo "SC_Info 不存在，跳过"
 
           # 删除手表组件
           echo "===== 删除手表组件 ====="
@@ -89,12 +93,11 @@ jobs:
             echo "已删除嵌套组件: $item"
           done
 
-          /usr/libexec/PlistBuddy -c "Delete :WKCompanionAppBundleIdentifier" "$APP_PATH/Info.plist" 2>/dev/null \
-            && echo "已删除 WKCompanionAppBundleIdentifier" || true
-          /usr/libexec/PlistBuddy -c "Delete :WKWatchKitApp" "$APP_PATH/Info.plist" 2>/dev/null \
-            && echo "已删除 WKWatchKitApp" || true
+          /usr/libexec/PlistBuddy -c "Delete :WKCompanionAppBundleIdentifier" "$APP_PATH/Info.plist" 2>/dev/null && echo "已删除 WKCompanionAppBundleIdentifier" || true
+          /usr/libexec/PlistBuddy -c "Delete :WKWatchKitApp" "$APP_PATH/Info.plist" 2>/dev/null && echo "已删除 WKWatchKitApp" || true
 
-          cd ipa_work && zip -qr ../app_patched.ipa Payload && cd ..
+          # 用 --symlinks 打包，保留软链接
+          cd ipa_work && zip --symlinks -qr ../app_patched.ipa Payload && cd ..
           echo "===== Patch 完成 ====="
 
       - name: Sign IPA
@@ -105,6 +108,27 @@ jobs:
             signing_identity:"${{ secrets.SIGNING_IDENTITY }}" \
             provisioning_profile:profile.mobileprovision
 
+      # 签名后修复 CodeResources 软链接（fastlane resign 打包时不保留软链接）
+      - name: Fix CodeResources symlink
+        run: |
+          mkdir -p signed_fix
+          unzip -q signed.ipa -d signed_fix
+          APP_PATH=$(find signed_fix/Payload -name "*.app" -maxdepth 1 -type d)
+          echo "检查 CodeResources: $(ls -la "$APP_PATH/CodeResources" 2>/dev/null || echo '不存在')"
+
+          if [ -f "$APP_PATH/CodeResources" ] && [ ! -L "$APP_PATH/CodeResources" ]; then
+            rm "$APP_PATH/CodeResources"
+            ln -s "_CodeSignature/CodeResources" "$APP_PATH/CodeResources"
+            echo "已修复 CodeResources 软链接"
+          else
+            echo "CodeResources 已是软链接，无需修复"
+          fi
+
+          rm signed.ipa
+          cd signed_fix && zip --symlinks -qr ../signed.ipa Payload && cd ..
+          rm -rf signed_fix
+          echo "signed.ipa 重新打包完成"
+
       - name: Verify signed IPA
         run: ls -lah signed.ipa
 
@@ -113,7 +137,6 @@ jobs:
           ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
           ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
         run: |
-          # 把 \n 还原为真实换行符
           echo "${{ secrets.APP_STORE_CONNECT_API_KEY }}" \
             | sed 's/\\n/\n/g' > AuthKey_raw.p8
 
