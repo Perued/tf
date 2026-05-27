@@ -27,11 +27,10 @@ jobs:
         run: |
           echo "${{ secrets.SIGNING_PROFILE }}" | base64 --decode > profile.mobileprovision
 
-      # 使用兼容 OpenSSL 的 Ruby 版本
       - name: Setup Ruby
         uses: ruby/setup-ruby@v1
         with:
-          ruby-version: '3.1'
+          ruby-version: '3.3'
 
       - name: Install fastlane
         run: gem install fastlane --no-document
@@ -90,8 +89,10 @@ jobs:
             echo "已删除嵌套组件: $item"
           done
 
-          /usr/libexec/PlistBuddy -c "Delete :WKCompanionAppBundleIdentifier" "$APP_PATH/Info.plist" 2>/dev/null && echo "已删除 WKCompanionAppBundleIdentifier" || true
-          /usr/libexec/PlistBuddy -c "Delete :WKWatchKitApp" "$APP_PATH/Info.plist" 2>/dev/null && echo "已删除 WKWatchKitApp" || true
+          /usr/libexec/PlistBuddy -c "Delete :WKCompanionAppBundleIdentifier" "$APP_PATH/Info.plist" 2>/dev/null \
+            && echo "已删除 WKCompanionAppBundleIdentifier" || true
+          /usr/libexec/PlistBuddy -c "Delete :WKWatchKitApp" "$APP_PATH/Info.plist" 2>/dev/null \
+            && echo "已删除 WKWatchKitApp" || true
 
           cd ipa_work && zip -qr ../app_patched.ipa Payload && cd ..
           echo "===== Patch 完成 ====="
@@ -108,17 +109,34 @@ jobs:
         run: ls -lah signed.ipa
 
       - name: Create API Key JSON
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
         run: |
-          echo "${{ secrets.APP_STORE_CONNECT_API_KEY }}" > AuthKey.p8
+          # 把 \n 还原为真实换行符
+          echo "${{ secrets.APP_STORE_CONNECT_API_KEY }}" \
+            | sed 's/\\n/\n/g' > AuthKey_raw.p8
+
+          echo "===== 密钥内容检查 ====="
+          head -1 AuthKey_raw.p8
+
+          # 转换为命名曲线格式，修复 OpenSSL 3.x invalid curve name 错误
+          openssl pkcs8 -in AuthKey_raw.p8 -nocrypt 2>/dev/null \
+            | openssl ec -outform PEM 2>/dev/null \
+            | openssl pkcs8 -topk8 -nocrypt -out AuthKey.p8 2>/dev/null \
+            || cp AuthKey_raw.p8 AuthKey.p8
+
+          echo "密钥转换完成"
+
           python3 << 'PYEOF'
-          import json
+          import json, os
 
           with open('AuthKey.p8', 'r') as f:
               key_content = f.read()
 
           data = {
-              "key_id": "${{ secrets.ASC_KEY_ID }}",
-              "issuer_id": "${{ secrets.ASC_ISSUER_ID }}",
+              "key_id": os.environ['ASC_KEY_ID'],
+              "issuer_id": os.environ['ASC_ISSUER_ID'],
               "key": key_content,
               "in_house": False
           }
