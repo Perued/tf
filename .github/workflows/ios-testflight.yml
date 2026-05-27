@@ -21,7 +21,6 @@ jobs:
       - name: Debug files
         run: |
           pwd
-          echo "===== ROOT FILES ====="
           ls -lah
           file app.ipa || true
 
@@ -30,22 +29,27 @@ jobs:
         run: |
           brew install fastlane
 
-      # 恢复 App Store Connect API Key
-      - name: Restore API Key
+      # 创建 API Key JSON
+      - name: Create API Key JSON
         run: |
-          echo '${{ secrets.APP_STORE_CONNECT_API_KEY }}' > AuthKey.p8
+          cat > api_key.json <<EOF
+          {
+            "key_id": "${{ secrets.ASC_KEY_ID }}",
+            "issuer_id": "${{ secrets.ASC_ISSUER_ID }}",
+            "key": "${{ secrets.APP_STORE_CONNECT_API_KEY }}",
+            "in_house": false
+          }
+          EOF
 
-      # 上传 IPA 到 TestFlight
+      # 上传 IPA
       - name: Upload IPA
         run: |
           fastlane pilot upload \
             --ipa app.ipa \
-            --api_key_path AuthKey.p8 \
-            --api_key_key_id "${{ secrets.ASC_KEY_ID }}" \
-            --api_key_issuer_id "${{ secrets.ASC_ISSUER_ID }}" \
+            --api_key_path api_key.json \
             --skip_waiting_for_build_processing true
 
-      # 上传 IPA Artifact
+      # 上传 artifact
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
