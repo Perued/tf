@@ -81,7 +81,6 @@ jobs:
           rm -rf "$APP_PATH/PlugIns" && echo "已删除 PlugIns/" || true
           rm -rf "$APP_PATH/com.apple.WatchPlaceholder" && echo "已删除 com.apple.WatchPlaceholder/" || true
 
-          # 递归删除所有层级中含 Watch 关键字的组件
           find "$APP_PATH" -mindepth 2 \( \
             -name "*Watch*" -o \
             -name "*WatchKit*" -o \
@@ -111,5 +110,42 @@ jobs:
 
       # 验证签名结果
       - name: Verify signed IPA
+        run: ls -lah signed.ipa
+
+      # 创建 API Key JSON
+      - name: Create API Key JSON
         run: |
-          echo "===== SIGNED I
+          echo "${{ secrets.APP_STORE_CONNECT_API_KEY }}" > AuthKey.p8
+          python3 << 'PYEOF'
+          import json
+
+          with open('AuthKey.p8', 'r') as f:
+              key_content = f.read()
+
+          data = {
+              "key_id": "${{ secrets.ASC_KEY_ID }}",
+              "issuer_id": "${{ secrets.ASC_ISSUER_ID }}",
+              "key": key_content,
+              "in_house": False
+          }
+
+          with open('api_key.json', 'w') as f:
+              json.dump(data, f, indent=2)
+
+          print("api_key.json 生成成功")
+          PYEOF
+
+      # 上传到 TestFlight
+      - name: Upload IPA
+        run: |
+          fastlane pilot upload \
+            --ipa signed.ipa \
+            --api_key_path api_key.json \
+            --skip_waiting_for_build_processing true
+
+      # 上传 artifact
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: signed-ipa
+          path: signed.ipa
