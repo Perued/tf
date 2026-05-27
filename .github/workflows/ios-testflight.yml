@@ -8,34 +8,34 @@ jobs:
   upload-ipa:
     runs-on: macos-latest
     steps:
-      # 拉取仓库
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
           lfs: true
 
-      # 查看文件
       - name: Debug files
         run: |
           pwd
           ls -lah
           file app.ipa || true
 
-      # 还原签名证书
       - name: Restore signing certificate
         run: |
           echo "${{ secrets.SIGNING_CERT_P12 }}" | base64 --decode > cert.p12
 
-      # 还原描述文件
       - name: Restore provisioning profile
         run: |
           echo "${{ secrets.SIGNING_PROFILE }}" | base64 --decode > profile.mobileprovision
 
-      # 安装 fastlane
+      # 使用兼容 OpenSSL 的 Ruby 版本
+      - name: Setup Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.1'
+
       - name: Install fastlane
         run: gem install fastlane --no-document
 
-      # 导入证书到钥匙串
       - name: Import certificate to keychain
         run: |
           security create-keychain -p "" build.keychain
@@ -49,7 +49,6 @@ jobs:
             -S apple-tool:,apple: \
             -s -k "" build.keychain
 
-      # 修改 Bundle ID / 删除手表组件 / 删除 PlugIns / 删除后台模式
       - name: Patch IPA
         env:
           TARGET_BUNDLE_ID: ${{ secrets.TARGET_BUNDLE_ID }}
@@ -75,7 +74,7 @@ jobs:
             && echo "已删除 UIBackgroundModes" \
             || echo "UIBackgroundModes 不存在，跳过"
 
-          # 删除手表组件（递归清理所有层级）
+          # 删除手表组件
           echo "===== 删除手表组件 ====="
           rm -rf "$APP_PATH/Watch" && echo "已删除 Watch/" || true
           rm -rf "$APP_PATH/PlugIns" && echo "已删除 PlugIns/" || true
@@ -91,15 +90,12 @@ jobs:
             echo "已删除嵌套组件: $item"
           done
 
-          # 清理手表相关 plist 声明
           /usr/libexec/PlistBuddy -c "Delete :WKCompanionAppBundleIdentifier" "$APP_PATH/Info.plist" 2>/dev/null && echo "已删除 WKCompanionAppBundleIdentifier" || true
           /usr/libexec/PlistBuddy -c "Delete :WKWatchKitApp" "$APP_PATH/Info.plist" 2>/dev/null && echo "已删除 WKWatchKitApp" || true
 
-          # 重新打包
           cd ipa_work && zip -qr ../app_patched.ipa Payload && cd ..
           echo "===== Patch 完成 ====="
 
-      # fastlane 签名
       - name: Sign IPA
         run: |
           cp app_patched.ipa signed.ipa
@@ -108,11 +104,9 @@ jobs:
             signing_identity:"${{ secrets.SIGNING_IDENTITY }}" \
             provisioning_profile:profile.mobileprovision
 
-      # 验证签名结果
       - name: Verify signed IPA
         run: ls -lah signed.ipa
 
-      # 创建 API Key JSON
       - name: Create API Key JSON
         run: |
           echo "${{ secrets.APP_STORE_CONNECT_API_KEY }}" > AuthKey.p8
@@ -135,7 +129,6 @@ jobs:
           print("api_key.json 生成成功")
           PYEOF
 
-      # 上传到 TestFlight
       - name: Upload IPA
         run: |
           fastlane pilot upload \
@@ -143,7 +136,6 @@ jobs:
             --api_key_path api_key.json \
             --skip_waiting_for_build_processing true
 
-      # 上传 artifact
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
